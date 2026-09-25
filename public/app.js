@@ -223,6 +223,10 @@ async function exportWinners() {
     URL.revokeObjectURL(url);
 }
 
+// Background Music
+const bgMusic = new Audio('spin-music.mp3');
+bgMusic.loop = true;
+
 // Spin logic
 spinBtn.addEventListener('click', async () => {
     // Hide previous win state
@@ -236,6 +240,11 @@ spinBtn.addEventListener('click', async () => {
     spinBtn.querySelector('.spinner').style.display = 'inline-block';
     msgEl.textContent = 'Đang tải...';
     
+    if (soundToggle.checked) {
+        bgMusic.currentTime = 0;
+        bgMusic.play().catch(e => console.log('Audio play blocked:', e));
+    }
+    
     try {
         const res = await fetch('/api/spin', { method: 'POST', headers: { Authorization: `Bearer ${presenterToken}` } });
         const data = await res.json();
@@ -245,6 +254,7 @@ spinBtn.addEventListener('click', async () => {
         spinBtn.querySelector('.spinner').style.display = 'none';
         
         if (!res.ok) {
+            bgMusic.pause();
             if (res.status === 401 || res.status === 403) { presenterToken = null; sessionStorage.removeItem('presenterToken'); syncPresenterState(); }
             msgEl.textContent = data.error;
             spinBtn.disabled = false;
@@ -255,6 +265,7 @@ spinBtn.addEventListener('click', async () => {
         animateSlots(data.code, data.name);
         
     } catch (e) {
+        bgMusic.pause();
         spinBtn.setAttribute('aria-busy', 'false');
         spinBtn.querySelector('.btn-text').style.display = 'inline';
         spinBtn.querySelector('.spinner').style.display = 'none';
@@ -319,6 +330,7 @@ function animateSlots(targetCode, winnerName) {
 }
 
 function onSpinComplete(code, name) {
+    bgMusic.pause();
     msgEl.textContent = '';
     spinBtn.disabled = false;
     stopMarquee();
