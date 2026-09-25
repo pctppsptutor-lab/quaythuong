@@ -186,6 +186,11 @@
                 </button>
             </li>
             <li class="nav-item">
+                <button class="nav-link" data-view="history">
+                    <ion-icon name="time-outline"></ion-icon> Lịch Sử Quay
+                </button>
+            </li>
+            <li class="nav-item">
                 <button class="nav-link" data-view="settings">
                     <ion-icon name="settings-outline"></ion-icon> Cài Đặt & Bảo Mật
                 </button>
@@ -269,9 +274,6 @@
         <div id="participants" class="view-section">
             <div class="page-header">
                 <h1 class="page-title">Quản Lý Danh Sách</h1>
-                <button class="btn btn-warning" id="resetBtn">
-                    <ion-icon name="reload-outline"></ion-icon> Reset Kết Quả Lịch Sử
-                </button>
             </div>
 
             <div class="panel">
@@ -287,6 +289,32 @@
                                 <th>Họ Tên</th>
                                 <th>Tỉ lệ ưu tiên</th>
                                 <th>Trạng thái</th>
+                                <th style="text-align: right;">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- History View -->
+        <div id="history" class="view-section">
+            <div class="page-header">
+                <h1 class="page-title">Lịch Sử Trúng Thưởng</h1>
+                <button class="btn btn-warning" id="resetBtn">
+                    <ion-icon name="trash-outline"></ion-icon> Xóa Toàn Bộ Lịch Sử
+                </button>
+            </div>
+
+            <div class="panel">
+                <div class="table-responsive">
+                    <table id="historyTable">
+                        <thead>
+                            <tr>
+                                <th>Mã Số</th>
+                                <th>Họ Tên</th>
+                                <th>Thời Gian Trúng</th>
                                 <th style="text-align: right;">Thao tác</th>
                             </tr>
                         </thead>

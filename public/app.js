@@ -347,6 +347,23 @@ startMarquee();
 presenterLoginBtn.addEventListener('click', presenterSignIn);
 document.getElementById('presenterPassword').addEventListener('keydown', event => { if (event.key === 'Enter') presenterSignIn(); });
 exportBtn.addEventListener('click', exportWinners);
-reloadBtn.addEventListener('click', () => location.reload());
+reloadBtn.addEventListener('click', async () => {
+    if (!presenterToken) {
+        location.reload();
+        return;
+    }
+    if (confirm('Bạn có chắc chắn muốn làm mới (reset) toàn bộ lịch sử trúng thưởng về trạng thái ban đầu?')) {
+        try {
+            const res = await fetch('/api/admin/reset', { method: 'POST', headers: { Authorization: `Bearer ${presenterToken}` } });
+            if (res.ok) {
+                location.reload();
+            } else {
+                alert('Có lỗi xảy ra khi reset dữ liệu!');
+            }
+        } catch(e) {
+            alert('Lỗi kết nối!');
+        }
+    }
+});
 syncPresenterState();
 loadWinners();

@@ -270,6 +270,35 @@ app.delete('/api/admin/participants/:id', authenticateToken, async (req, res) =>
     catch { return res.status(500).json({ error: 'Lỗi cơ sở dữ liệu.' }); }
 });
 
+app.get('/api/admin/history', authenticateToken, async (req, res) => {
+    try {
+        const result = await pool.query('SELECT id, code, name, won_at FROM winners ORDER BY won_at DESC');
+        res.json(result.rows);
+    } catch (err) { res.status(500).json({ error: 'Lỗi cơ sở dữ liệu.' }); }
+});
+
+app.delete('/api/admin/history/:id', authenticateToken, async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: 'ID không hợp lệ.' });
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        const winnerRes = await client.query('SELECT code FROM winners WHERE id = $1', [id]);
+        if (winnerRes.rows.length) {
+            await client.query('UPDATE participants SET is_drawn = 0 WHERE code = $1', [winnerRes.rows[0].code]);
+            await client.query('DELETE FROM winners WHERE id = $1', [id]);
+        }
+        await client.query('COMMIT');
+        audit(req.user.id, 'delete_winner', `winner_id=${id}`);
+        return res.json({ success: true });
+    } catch { 
+        try { await client.query('ROLLBACK'); } catch {}
+        return res.status(500).json({ error: 'Lỗi cơ sở dữ liệu.' }); 
+    } finally {
+        client.release();
+    }
+});
+
 app.post('/api/admin/reset', authenticateToken, (req, res) => withTransactionLock(async () => {
     const client = await pool.connect();
     try {

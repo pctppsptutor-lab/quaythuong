@@ -98,6 +98,62 @@ function switchView(viewId) {
     
     if (viewId === 'overview') loadStats();
     if (viewId === 'participants') loadParticipants();
+    if (viewId === 'history') loadHistory();
+}
+
+async function loadHistory() {
+    try {
+        const historyData = await apiCall('/api/admin/history');
+        const tbody = document.querySelector('#historyTable tbody');
+        tbody.replaceChildren();
+        
+        if (historyData.length === 0) {
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+            td.colSpan = 4;
+            td.textContent = 'Chưa có lịch sử quay';
+            td.className = 'empty-table';
+            tr.appendChild(td);
+            tbody.appendChild(tr);
+            return;
+        }
+        
+        historyData.forEach(h => {
+            const tr = document.createElement('tr');
+            [h.code, h.name, new Date(h.won_at).toLocaleString('vi-VN')].forEach((val, i) => {
+                const td = document.createElement('td');
+                td.textContent = val;
+                if (i === 0) td.style.fontWeight = '700';
+                tr.appendChild(td);
+            });
+            const actionCell = document.createElement('td');
+            actionCell.style.textAlign = 'right';
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn btn-sm btn-danger';
+            deleteBtn.textContent = 'Xóa/Hủy kết quả';
+            deleteBtn.onclick = () => deleteWinner(h.id);
+            actionCell.appendChild(deleteBtn);
+            tr.appendChild(actionCell);
+            tbody.appendChild(tr);
+        });
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function deleteWinner(id) {
+    if (!confirm('Hủy kết quả này? Người này sẽ được trả lại trạng thái chưa quay.')) return;
+    try {
+        const res = await apiCall(`/api/admin/history/${id}`, { method: 'DELETE' });
+        if (res.success) {
+            showToast('Đã hủy kết quả', 'success');
+            loadStats();
+            loadHistory();
+            if (document.getElementById('participants').classList.contains('active')) loadParticipants();
+        }
+    } catch (e) {
+        showToast('Lỗi khi hủy', 'error');
+    }
 }
 
 async function apiCall(url, options = {}) {
@@ -247,6 +303,7 @@ async function resetState() {
             showToast('Đã reset toàn bộ lịch sử thành công!', 'success');
             loadStats();
             loadParticipants();
+            if (document.getElementById('history').classList.contains('active')) loadHistory();
         }
     } catch (e) {
         showToast('Lỗi khi reset', 'error');
