@@ -117,22 +117,29 @@ body::before {
 }
 .btn-sm:hover { background: rgba(255,255,255,0.2); }
 
+.header {
+    text-align: center;
+    width: 100%;
+    margin-bottom: 20px;
+}
+
 .program-title {
-    font-size: 2.2rem;
+    font-size: 3.5rem;
     font-weight: 900;
     text-transform: uppercase;
-    letter-spacing: 3px;
-    margin-bottom: 5px;
-    background: linear-gradient(45deg, #00f2fe 0%, #4facfe 100%);
+    letter-spacing: 5px;
+    margin-bottom: -5px;
+    background: linear-gradient(to right, #00f2fe, #4facfe);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    filter: drop-shadow(0 3px 5px rgba(0,0,0,0.5));
+    filter: drop-shadow(0 4px 15px rgba(0, 242, 254, 0.5));
     animation: titleFloat 3s ease-in-out infinite;
+    display: inline-block;
 }
 
 @keyframes titleFloat {
     0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-5px); }
+    50% { transform: translateY(-8px); }
 }
 
 .header h1 {
@@ -428,7 +435,7 @@ body::before {
     
     .header-top { flex-direction: column; gap: 15px; margin-bottom: 30px; }
     
-    .program-title { font-size: 1.5rem; }
+    .program-title { font-size: 2rem; letter-spacing: 2px; }
     .header h1 { font-size: 2rem; margin-bottom: 30px; }
     
     .machine-container { padding: 20px 15px; border-radius: 12px; }
