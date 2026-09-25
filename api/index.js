@@ -18,7 +18,8 @@ const configuredSecret = process.env.JWT_SECRET;
 if (configuredSecret && configuredSecret.length < 32) throw new Error('JWT_SECRET must be at least 32 characters.');
 const JWT_SECRET = configuredSecret || crypto.randomBytes(48).toString('base64url');
 if (!configuredSecret) console.warn('JWT_SECRET is not configured; sessions will be invalid after restart.');
-const allowedOrigins = new Set((process.env.ALLOWED_ORIGINS || `http://localhost:${PORT},http://127.0.0.1:${PORT}`).split(',').map(value => value.trim()).filter(Boolean));
+const allowedOriginsConfig = process.env.ALLOWED_ORIGINS || `http://localhost:${PORT},http://127.0.0.1:${PORT}`;
+const allowedOrigins = new Set(allowedOriginsConfig.split(',').map(value => value.trim()).filter(Boolean));
 
 app.disable('x-powered-by');
 app.use((req, res, next) => {
@@ -30,7 +31,7 @@ app.use((req, res, next) => {
     next();
 });
 app.use(cors({ origin(origin, callback) {
-    if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+    if (!origin || allowedOriginsConfig === '*' || allowedOrigins.has(origin)) return callback(null, true);
     return callback(new Error('Origin not allowed'));
 } }));
 app.use(express.json({ limit: '128kb' }));
