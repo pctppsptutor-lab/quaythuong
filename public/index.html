@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quay Thưởng Edupia</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Curtain overlay for sides -->
+    <div class="curtain curtain-left"></div>
+    <div class="curtain curtain-right"></div>
+    
+    <div class="spotlight"></div>
+
+    <div class="container">
+        <div class="header-top">
+            <div class="logo">
+                <img class="brand-logo" src="logo.svg" alt="Edupia" width="270" height="74">
+            </div>
+            <div class="top-actions">
+                <button class="btn-sm" id="exportBtn">📥 Xuất danh sách trúng thưởng</button>
+                <button class="btn-sm" id="reloadBtn">🔄 Làm mới</button>
+            </div>
+        </div>
+
+        <div class="header">
+            <h1>🎊 QUAY THƯỞNG 🎊</h1>
+        </div>
+        
+        <div class="machine-container">
+            <div class="slot-machine">
+                <div class="marquee-lights" id="lights-top"></div>
+                <div class="marquee-lights" id="lights-bottom"></div>
+                <div class="marquee-lights-v" id="lights-left"></div>
+                <div class="marquee-lights-v" id="lights-right"></div>
+                
+                <div class="slots">
+                    <div class="slot"><div class="slot-inner" id="slot-0">0</div></div>
+                    <div class="slot"><div class="slot-inner" id="slot-1">0</div></div>
+                    <div class="slot"><div class="slot-inner" id="slot-2">0</div></div>
+                    <div class="slot"><div class="slot-inner" id="slot-3">0</div></div>
+                    <div class="slot"><div class="slot-inner" id="slot-4">0</div></div>
+                    <div class="slot"><div class="slot-inner" id="slot-5">0</div></div>
+                </div>
+            </div>
+        </div>
+        
+        <section id="presenterLogin" class="presenter-login" aria-labelledby="presenterTitle">
+            <h2 id="presenterTitle">Đăng nhập người điều khiển</h2>
+            <div class="login-row">
+                <label>Tài khoản <input id="presenterUsername" autocomplete="username" value="admin"></label>
+                <label>Mật khẩu <input id="presenterPassword" type="password" autocomplete="current-password"></label>
+                <button id="presenterLoginBtn" class="btn-sm">Đăng nhập</button>
+            </div>
+            <p id="presenterLoginMessage" class="status-msg" aria-live="polite"></p>
+        </section>
+
+        <div id="winnerNameDisplay" class="winner-name-display hidden" aria-live="polite">
+            <span class="emoji">🎉</span> <span id="wName"></span> <span class="emoji">🎉</span>
+        </div>
+        
+        <div class="controls">
+            <button id="spinBtn" class="btn-spin" aria-busy="false">
+                <span class="btn-text">🎯 QUAY NGAY</span>
+                <span class="spinner" role="status" style="display:none;" aria-label="Đang tải"></span>
+            </button>
+            <div class="status-msg" id="message" aria-live="polite"></div>
+            
+            <div id="winnerSmallInfo" class="winner-small-info hidden">
+                Mã <span id="wSmallCode"></span> — <span id="wSmallName"></span>
+            </div>
+
+            <div class="sound-control" style="margin-top: 15px;">
+                <input type="checkbox" id="soundToggle" checked>
+                <label for="soundToggle">🔊 Âm thanh</label>
+            </div>
+        </div>
+
+        <div class="winners-section">
+            <div class="winners-header">
+                <h3>🏆 Danh sách trúng thưởng</h3>
+                <span id="winnersCount">(0 người)</span>
+            </div>
+            <div class="winners-grid" id="winnersList" aria-live="polite" aria-busy="false">
+                <!-- Winner cards injected here -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Hiệu ứng chữ chúc mừng bay lên giữa màn hình -->
+    <div id="hugeCongrats" class="huge-congrats">CHÚC MỪNG!</div>
+
+    <script src="app.js"></script>
+</body>
+</html>
