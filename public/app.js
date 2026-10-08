@@ -20,6 +20,7 @@ let presenterToken = sessionStorage.getItem('presenterToken');
 function syncPresenterState() {
     presenterLogin.classList.toggle('hidden', Boolean(presenterToken));
     spinBtn.disabled = !presenterToken;
+    document.getElementById('spinCount').disabled = !presenterToken;
     exportBtn.disabled = false;
 }
 
@@ -246,7 +247,12 @@ spinBtn.addEventListener('click', async () => {
     }
     
     try {
-        const res = await fetch('/api/spin', { method: 'POST', headers: { Authorization: `Bearer ${presenterToken}` } });
+        const count = parseInt(document.getElementById('spinCount').value) || 1;
+        const res = await fetch('/api/spin', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${presenterToken}` },
+            body: JSON.stringify({ count })
+        });
         const data = await res.json();
 
         spinBtn.setAttribute('aria-busy', 'false');
@@ -262,7 +268,13 @@ spinBtn.addEventListener('click', async () => {
         }
         
         msgEl.textContent = 'Đang quay... ⚙️';
-        animateSlots(data.code, data.name);
+        if (count === 1) {
+            animateSlots(data.winners[0].code, data.winners[0].name, false);
+        } else {
+            // Batch mode: animate with dummy code, then show modal
+            window.currentBatchWinners = data.winners;
+            animateSlots('888888', 'BATCH_WIN', true);
+        }
         
     } catch (e) {
         bgMusic.pause();
@@ -274,7 +286,7 @@ spinBtn.addEventListener('click', async () => {
     }
 });
 
-function animateSlots(targetCode, winnerName) {
+function animateSlots(targetCode, winnerName, isBatch) {
     const codeStr = String(targetCode).padStart(6, '0');
     
     const slots = [
@@ -302,6 +314,7 @@ function animateSlots(targetCode, winnerName) {
         let spinDuration = 1 + (index * 0.6); // 1s, 1.6s, 2.2s, 2.8s
         if (index === 4) spinDuration += 1.5; // 4.9s
         if (index === 5) spinDuration += 3; // 7.0s
+        if (isBatch) spinDuration = spinDuration * 0.5; // Faster if batch
         
         const easeType = index >= 4 ? "power4.out" : "power2.out";
         
@@ -317,41 +330,60 @@ function animateSlots(targetCode, winnerName) {
                     if (index < 2) playTickSound(); 
                 }
                 if (progress < 1) return requestAnimationFrame(step);
-                slot.textContent = targetDigit;
+                slot.textContent = isBatch ? '?' : targetDigit;
                 slot.classList.add('locked'); 
                 playTickSound(true); 
                 
                 if (index === 5) {
-                    onSpinComplete(codeStr, winnerName);
+                    onSpinComplete(codeStr, winnerName, isBatch);
                 }
         }
         requestAnimationFrame(step);
     });
 }
 
-function onSpinComplete(code, name) {
+function onSpinComplete(code, name, isBatch) {
     bgMusic.pause();
     msgEl.textContent = '';
     spinBtn.disabled = false;
     stopMarquee();
     playWinSound();
     
-    wName.textContent = name;
-    wSmallCode.textContent = code;
-    wSmallName.textContent = name;
-    
-    wNameDisplay.classList.remove('hidden');
-    wSmallInfo.classList.remove('hidden');
-    
-    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        hugeCongrats.animate([
-            { transform: 'translate(-50%, -50%) scale(0)', opacity: 1 },
-            { transform: 'translate(-50%, -50%) scale(1.5)', opacity: 0 }
-        ], { duration: 2000, easing: 'ease-out' });
+    if (isBatch) {
+        const modal = document.getElementById('batchWinModal');
+        const list = document.getElementById('batchWinnersList');
+        list.innerHTML = '';
+        window.currentBatchWinners.forEach(w => {
+            const card = document.createElement('div');
+            card.className = 'batch-winner-card';
+            card.innerHTML = `<div class="batch-w-code">${w.code}</div><div class="batch-w-name">${w.name}</div>`;
+            list.appendChild(card);
+        });
+        modal.classList.remove('hidden');
+    } else {
+        wName.textContent = name;
+        wSmallCode.textContent = code;
+        wSmallName.textContent = name;
+        
+        wNameDisplay.classList.remove('hidden');
+        wSmallInfo.classList.remove('hidden');
+        
+        if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            hugeCongrats.animate([
+                { transform: 'translate(-50%, -50%) scale(0)', opacity: 1 },
+                { transform: 'translate(-50%, -50%) scale(1.5)', opacity: 0 }
+            ], { duration: 2000, easing: 'ease-out' });
+        }
     }
     
     loadWinners();
 }
+
+document.getElementById('closeBatchModal').addEventListener('click', () => {
+    document.getElementById('batchWinModal').classList.add('hidden');
+    for(let i=0; i<6; i++) document.getElementById('slot-'+i).textContent = '0';
+    document.querySelectorAll('.slot').forEach(s => s.classList.remove('locked'));
+});
 
 // Init
 setupLights();

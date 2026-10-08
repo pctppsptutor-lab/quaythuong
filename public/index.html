@@ -62,10 +62,18 @@
         </div>
         
         <div class="controls">
-            <button id="spinBtn" class="btn-spin" aria-busy="false">
-                <span class="btn-text">🎯 QUAY NGAY</span>
-                <span class="spinner" role="status" style="display:none;" aria-label="Đang tải"></span>
-            </button>
+            <div class="spin-actions" style="display: flex; gap: 10px; align-items: center;">
+                <select id="spinCount" class="form-control" style="width: auto; padding: 10px; border-radius: 8px; font-weight: bold; background: #fff; color: #333; cursor: pointer; border: 2px solid var(--gold);">
+                    <option value="1">1 người</option>
+                    <option value="2">2 người</option>
+                    <option value="5">5 người</option>
+                    <option value="10">10 người</option>
+                </select>
+                <button id="spinBtn" class="btn-spin" aria-busy="false">
+                    <span class="btn-text">🎯 QUAY NGAY</span>
+                    <span class="spinner" role="status" style="display:none;" aria-label="Đang tải"></span>
+                </button>
+            </div>
             <div class="status-msg" id="message" aria-live="polite"></div>
             
             <div id="winnerSmallInfo" class="winner-small-info hidden">
@@ -91,6 +99,15 @@
     
     <!-- Hiệu ứng chữ chúc mừng bay lên giữa màn hình -->
     <div id="hugeCongrats" class="huge-congrats">CHÚC MỪNG!</div>
+
+    <!-- Modal cho nhiều giải -->
+    <div id="batchWinModal" class="modal hidden">
+        <div class="modal-content">
+            <h2 class="modal-title">🎉 CHÚC MỪNG 🎉</h2>
+            <div id="batchWinnersList" class="batch-winners-grid"></div>
+            <button id="closeBatchModal" class="btn-spin" style="padding: 10px 30px; font-size: 1.2rem; margin-top: 20px;">Xong</button>
+        </div>
+    </div>
 
     <script src="app.js"></script>
 </body>

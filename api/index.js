@@ -149,31 +149,43 @@ app.get('/api/admin/winners/export', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/spin', spinLimiter, authenticateToken, (req, res) => withTransactionLock(async () => {
+    const count = Math.min(Math.max(parseInt(req.body?.count) || 1, 1), 100);
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
         const pResult = await client.query('SELECT id, code, name, weight FROM participants WHERE is_drawn = 0 ORDER BY id');
-        const participants = pResult.rows;
+        let participants = pResult.rows;
         
         if (!participants.length) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Đã hết danh sách mã!' }); }
-        const weighted = participants.map(item => ({ ...item, weight: validWeight(item.weight) || 1 }));
-        const totalWeight = weighted.reduce((sum, item) => sum + item.weight, 0);
-        if (!Number.isSafeInteger(totalWeight) || totalWeight < 1) throw new Error('Invalid total weight');
+        if (participants.length < count) { await client.query('ROLLBACK'); return res.status(400).json({ error: `Chỉ còn ${participants.length} mã hợp lệ, không đủ ${count} người!` }); }
         
-        let ticket = crypto.randomInt(totalWeight);
-        let selected = weighted[weighted.length - 1];
-        for (const participant of weighted) {
-            if (ticket < participant.weight) { selected = participant; break; }
-            ticket -= participant.weight;
+        const selectedWinners = [];
+        for (let i = 0; i < count; i++) {
+            const weighted = participants.map(item => ({ ...item, weight: validWeight(item.weight) || 1 }));
+            const totalWeight = weighted.reduce((sum, item) => sum + item.weight, 0);
+            if (!Number.isSafeInteger(totalWeight) || totalWeight < 1) throw new Error('Invalid total weight');
+            
+            let ticket = crypto.randomInt(totalWeight);
+            let selected = weighted[weighted.length - 1];
+            for (const participant of weighted) {
+                if (ticket < participant.weight) { selected = participant; break; }
+                ticket -= participant.weight;
+            }
+            selectedWinners.push(selected);
+            participants = participants.filter(p => p.id !== selected.id);
         }
         
-        const update = await client.query('UPDATE participants SET is_drawn = 1 WHERE id = $1 AND is_drawn = 0', [selected.id]);
-        if (update.rowCount !== 1) throw new Error('Concurrent spin conflict');
+        const selectedIds = selectedWinners.map(w => w.id);
+        const update = await client.query('UPDATE participants SET is_drawn = 1 WHERE id = ANY($1::int[]) AND is_drawn = 0', [selectedIds]);
+        if (update.rowCount !== count) throw new Error('Concurrent spin conflict');
         
-        await client.query('INSERT INTO winners (code, name) VALUES ($1, $2)', [selected.code, selected.name]);
+        for (const w of selectedWinners) {
+            await client.query('INSERT INTO winners (code, name) VALUES ($1, $2)', [w.code, w.name]);
+        }
         await client.query('COMMIT');
-        audit(req.user.id, 'spin', `participant_id=${selected.id}`);
-        return res.json({ code: String(selected.code), name: selected.name });
+        audit(req.user.id, 'spin_batch', `count=${count}`);
+        
+        return res.json({ winners: selectedWinners.map(w => ({ code: String(w.code), name: w.name })) });
     } catch (error) {
         try { await client.query('ROLLBACK'); } catch {}
         console.error('Spin failed:', error.message);

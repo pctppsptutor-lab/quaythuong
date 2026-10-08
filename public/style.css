@@ -426,6 +426,35 @@ body::before {
     100% { opacity: 0.5; }
 }
 
+/* Modal */
+.modal {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 10000;
+    display: flex; justify-content: center; align-items: center;
+    backdrop-filter: blur(5px);
+    animation: fadeIn 0.3s ease-in-out;
+}
+.modal-content {
+    background: radial-gradient(circle at top, #431c7a 0%, #190934 100%);
+    padding: 30px; border-radius: 20px;
+    border: 2px solid var(--gold);
+    box-shadow: 0 0 30px rgba(249,212,35,0.4), inset 0 0 20px rgba(0,0,0,0.8);
+    width: 90%; max-width: 800px; max-height: 90vh; overflow-y: auto;
+    text-align: center;
+    transform: scale(0.9); animation: popIn 0.4s forwards cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.modal-title { font-size: 2.5rem; color: var(--gold); margin-bottom: 20px; text-shadow: 0 0 10px rgba(249,212,35,0.5); }
+.batch-winners-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;
+}
+.batch-winner-card {
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+    padding: 15px; border-radius: 10px;
+}
+.batch-w-code { font-size: 1.5rem; font-weight: 900; color: #fff; letter-spacing: 2px; }
+.batch-w-name { font-size: 1rem; color: var(--gold); margin-top: 5px; font-weight: 600; }
+
 /* Responsive Mobile */
 @media (max-width: 768px) {
     .curtain { display: none; } /* Hide curtains on small screens */
