@@ -300,7 +300,12 @@ body::before {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     gap: 15px;
+    max-height: 480px;
+    overflow-y: auto;
+    padding-right: 8px;
 }
+.winners-grid::-webkit-scrollbar { width: 6px; }
+.winners-grid::-webkit-scrollbar-thumb { background: rgba(249, 212, 35, 0.4); border-radius: 3px; }
 
 .winner-card {
     background: rgba(30, 15, 60, 0.8);

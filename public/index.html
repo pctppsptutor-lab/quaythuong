@@ -103,9 +103,12 @@
     <!-- Modal cho nhiều giải -->
     <div id="batchWinModal" class="modal hidden">
         <div class="modal-content">
-            <h2 class="modal-title">🎉 CHÚC MỪNG 🎉</h2>
+            <h2 class="modal-title">🎉 CHÚC MỪNG NGƯỜI TRÚNG THƯỞNG 🎉</h2>
             <div id="batchWinnersList" class="batch-winners-grid"></div>
-            <button id="closeBatchModal" class="btn-spin" style="padding: 10px 30px; font-size: 1.2rem; margin-top: 20px;">Xong</button>
+            <div style="display: flex; justify-content: center; gap: 15px; margin-top: 20px; flex-wrap: wrap;">
+                <button id="copyBatchWinnersBtn" class="btn-spin" style="padding: 12px 25px; font-size: 1.1rem; background: linear-gradient(180deg, #2ecc71 0%, #27ae60 100%); color: #fff; box-shadow: 0 4px 0 #1e8449;">📋 Sao chép danh sách</button>
+                <button id="closeBatchModal" class="btn-spin" style="padding: 12px 35px; font-size: 1.1rem;">Đóng</button>
+            </div>
         </div>
     </div>
 

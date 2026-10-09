@@ -383,6 +383,27 @@ document.getElementById('closeBatchModal').addEventListener('click', () => {
     document.querySelectorAll('.slot').forEach(s => s.classList.remove('locked'));
 });
 
+const copyBatchBtn = document.getElementById('copyBatchWinnersBtn');
+if (copyBatchBtn) {
+    copyBatchBtn.addEventListener('click', async () => {
+        if (!window.currentBatchWinners || !window.currentBatchWinners.length) return;
+        const text = '🎉 DANH SÁCH TRÚNG THƯỞNG 🎉\n' + 
+            window.currentBatchWinners.map((w, idx) => `${idx + 1}. Mã: ${w.code} - ${w.name}`).join('\n');
+        try {
+            await navigator.clipboard.writeText(text);
+            const originalText = copyBatchBtn.textContent;
+            copyBatchBtn.textContent = '✓ Đã sao chép!';
+            copyBatchBtn.style.filter = 'brightness(1.2)';
+            setTimeout(() => {
+                copyBatchBtn.textContent = originalText;
+                copyBatchBtn.style.filter = 'none';
+            }, 2000);
+        } catch (e) {
+            alert('Không thể tự động sao chép. Hãy chọn và copy thủ công.');
+        }
+    });
+}
+
 // Init
 setupLights();
 startMarquee();

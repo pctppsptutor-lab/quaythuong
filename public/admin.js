@@ -350,13 +350,22 @@ async function uploadCsv() {
                     const chunk = validLines.slice(i * chunkSize, (i + 1) * chunkSize);
                     const rawData = chunk.join('\n');
                     
-                    const res = await apiCall('/api/admin/import-raw', {
-                        method: 'POST',
-                        body: JSON.stringify({ rawData })
-                    });
-                    
-                    if (!res.success) {
-                        throw new Error(`Lỗi ở dòng ${i * chunkSize + 1}: ` + res.error);
+                    let retries = 3;
+                    let res;
+                    while (retries > 0) {
+                        try {
+                            res = await apiCall('/api/admin/import-raw', {
+                                method: 'POST',
+                                body: JSON.stringify({ rawData })
+                            });
+                            if (res && res.success) break;
+                            throw new Error(res?.error || 'Lỗi lưu dữ liệu');
+                        } catch (chunkErr) {
+                            retries--;
+                            if (retries === 0) throw new Error(`Lỗi tại gói ${i + 1}/${totalChunks} (dòng ${i * chunkSize + 1}): ${chunkErr.message}`);
+                            progressText.textContent = `Mạng chập chờn, đang tự động thử lại gói ${i + 1}/${totalChunks}...`;
+                            await new Promise(r => setTimeout(r, 1500));
+                        }
                     }
                     
                     successCount += chunk.length;
