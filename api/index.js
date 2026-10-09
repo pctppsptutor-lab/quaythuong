@@ -37,9 +37,9 @@ app.use(cors({ origin(origin, callback) {
 app.use(express.json({ limit: '128kb' }));
 app.use(express.static(path.join(__dirname, '../public'), { index: 'index.html' }));
 
-const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 200, standardHeaders: 'draft-8', legacyHeaders: false });
-const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: 'draft-8', legacyHeaders: false });
-const spinLimiter = rateLimit({ windowMs: 60 * 1000, limit: 20, standardHeaders: 'draft-8', legacyHeaders: false });
+const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 1000, standardHeaders: 'draft-8', legacyHeaders: false });
+const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 15, standardHeaders: 'draft-8', legacyHeaders: false });
+const spinLimiter = rateLimit({ windowMs: 60 * 1000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false });
 app.use('/api/', apiLimiter);
 
 // Sử dụng /tmp cho Vercel compatibility
@@ -124,9 +124,10 @@ app.post('/api/admin/change-password', authenticateToken, async (req, res) => {
     }
 });
 
-app.get('/api/winners', authenticateToken, async (req, res) => {
+// Cho phép công khai xem danh sách người trúng thưởng
+app.get('/api/winners', async (req, res) => {
     try {
-        const result = await pool.query('SELECT code, name, won_at FROM winners ORDER BY won_at DESC LIMIT 20');
+        const result = await pool.query('SELECT code, name, won_at FROM winners ORDER BY won_at DESC LIMIT 100');
         res.json(result.rows);
     } catch (err) {
         res.status(500).json({ error: 'Lỗi cơ sở dữ liệu.' });
@@ -148,33 +149,61 @@ app.get('/api/admin/winners/export', authenticateToken, async (req, res) => {
     }
 });
 
+// Tối ưu hoá quay ngẫu nhiên cho 200.000 mã không tốn băng thông và RAM
 app.post('/api/spin', spinLimiter, authenticateToken, (req, res) => withTransactionLock(async () => {
     const count = Math.min(Math.max(parseInt(req.body?.count) || 1, 1), 100);
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        const pResult = await client.query('SELECT id, code, name, weight FROM participants WHERE is_drawn = 0 ORDER BY id');
-        let participants = pResult.rows;
         
-        if (!participants.length) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Đã hết danh sách mã!' }); }
-        if (participants.length < count) { await client.query('ROLLBACK'); return res.status(400).json({ error: `Chỉ còn ${participants.length} mã hợp lệ, không đủ ${count} người!` }); }
+        // Kiểm tra nhanh số lượng và tỉ lệ ưu tiên
+        const statsRes = await client.query('SELECT MIN(weight) as min_w, MAX(weight) as max_w, COUNT(*) as cnt FROM participants WHERE is_drawn = 0');
+        const { min_w, max_w, cnt } = statsRes.rows[0];
+        const availableCount = parseInt(cnt || 0);
         
-        const selectedWinners = [];
-        for (let i = 0; i < count; i++) {
-            const weighted = participants.map(item => ({ ...item, weight: validWeight(item.weight) || 1 }));
-            const totalWeight = weighted.reduce((sum, item) => sum + item.weight, 0);
-            if (!Number.isSafeInteger(totalWeight) || totalWeight < 1) throw new Error('Invalid total weight');
-            
-            let ticket = crypto.randomInt(totalWeight);
-            let selected = weighted[weighted.length - 1];
-            for (const participant of weighted) {
-                if (ticket < participant.weight) { selected = participant; break; }
-                ticket -= participant.weight;
-            }
-            selectedWinners.push(selected);
-            participants = participants.filter(p => p.id !== selected.id);
+        if (availableCount === 0) { 
+            await client.query('ROLLBACK'); 
+            return res.status(400).json({ error: 'Đã hết danh sách mã!' }); 
         }
-        
+        if (availableCount < count) { 
+            await client.query('ROLLBACK'); 
+            return res.status(400).json({ error: `Chỉ còn ${availableCount} mã hợp lệ, không đủ ${count} người!` }); 
+        }
+
+        let selectedWinners = [];
+
+        // Nhánh 1: Tỉ lệ đồng đều (99.9% trường hợp) -> PostgreSQL xử lý ngẫu nhiên tức thì, không kéo 200k dòng về Node.js
+        if (min_w === max_w) {
+            const pickRes = await client.query(
+                'SELECT id, code, name FROM participants WHERE is_drawn = 0 ORDER BY RANDOM() LIMIT $1',
+                [count]
+            );
+            selectedWinners = pickRes.rows;
+        } else {
+            // Nhánh 2: Có người có tỉ lệ ưu tiên khác nhau -> Chỉ kéo id và weight (cực nhẹ)
+            const idWeightRes = await client.query('SELECT id, weight FROM participants WHERE is_drawn = 0');
+            let poolItems = idWeightRes.rows.map(item => ({ id: item.id, weight: validWeight(item.weight) || 1 }));
+            
+            const selectedIds = [];
+            for (let i = 0; i < count; i++) {
+                const totalWeight = poolItems.reduce((sum, item) => sum + item.weight, 0);
+                let ticket = crypto.randomInt(totalWeight);
+                let picked = poolItems[poolItems.length - 1];
+                for (const item of poolItems) {
+                    if (ticket < item.weight) { picked = item; break; }
+                    ticket -= item.weight;
+                }
+                selectedIds.push(picked.id);
+                poolItems = poolItems.filter(p => p.id !== picked.id);
+            }
+
+            const detailsRes = await client.query(
+                'SELECT id, code, name FROM participants WHERE id = ANY($1::int[])',
+                [selectedIds]
+            );
+            selectedWinners = detailsRes.rows;
+        }
+
         const selectedIds = selectedWinners.map(w => w.id);
         const update = await client.query('UPDATE participants SET is_drawn = 1 WHERE id = ANY($1::int[]) AND is_drawn = 0', [selectedIds]);
         if (update.rowCount !== count) throw new Error('Concurrent spin conflict');

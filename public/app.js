@@ -165,12 +165,10 @@ async function loadWinners() {
     }
 
     try {
-        const res = await fetch('/api/winners', { headers: { Authorization: `Bearer ${presenterToken}` } });
-        if (res.status === 401 || res.status === 403) {
-            presenterToken = null;
-            sessionStorage.removeItem('presenterToken');
-            syncPresenterState();
-            throw new Error('Phiên đăng nhập hết hạn.');
+        const headers = presenterToken ? { Authorization: `Bearer ${presenterToken}` } : {};
+        const res = await fetch('/api/winners', { headers });
+        if (!res.ok) {
+            throw new Error('Không thể tải danh sách người trúng.');
         }
         const winners = await res.json();
         
