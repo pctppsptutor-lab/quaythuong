@@ -273,25 +273,97 @@ async function uploadRaw() {
 
 async function uploadCsv() {
     const fileInput = document.getElementById('csvFile');
-    if (!fileInput.files[0]) return showToast('Vui lòng chọn file CSV', 'error');
-
-    const formData = new FormData();
-    formData.append('file', fileInput.files[0]);
+    if (!fileInput.files[0]) return showToast('Vui lòng chọn file', 'error');
 
     setLoading('btnCsv', true);
     try {
-        const res = await apiCall('/api/admin/import', { method: 'POST', body: formData });
-        if (res.success) {
-            showToast(res.message, 'success');
-            fileInput.value = '';
-            loadStats();
-        } else {
-            showToast(res.error, 'error');
-        }
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+        
+        reader.onload = async (e) => {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                
+                // Convert to array of objects
+                const rawRows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                if (rawRows.length < 2) throw new Error("File không có dữ liệu");
+                
+                // Find column indices
+                const headers = rawRows[0].map(h => String(h || '').toLowerCase().trim());
+                const codeIdx = headers.findIndex(h => h.includes('code') || h.includes('mã'));
+                const nameIdx = headers.findIndex(h => h.includes('name') || h.includes('tên'));
+                const weightIdx = headers.findIndex(h => h.includes('weight') || h.includes('tỉ') || h.includes('ti le'));
+                
+                if (codeIdx === -1) throw new Error("Không tìm thấy cột Code/Mã");
+                
+                // Filter and build TSV lines
+                const validLines = [];
+                for (let i = 1; i < rawRows.length; i++) {
+                    const row = rawRows[i];
+                    if (!row || !row.length) continue;
+                    const code = row[codeIdx] || '';
+                    if (!code) continue;
+                    const name = nameIdx !== -1 ? (row[nameIdx] || '') : '';
+                    const weight = weightIdx !== -1 ? (row[weightIdx] || '1') : '1';
+                    validLines.push(`${code}\t${name}\t${weight}`);
+                }
+                
+                if (validLines.length === 0) throw new Error("Không có dòng dữ liệu hợp lệ");
+                
+                // Chunk upload
+                const chunkSize = 4000;
+                const totalChunks = Math.ceil(validLines.length / chunkSize);
+                
+                const progressModal = document.getElementById('progressModal');
+                const progressBar = document.getElementById('progressBar');
+                const progressText = document.getElementById('progressText');
+                
+                progressModal.classList.remove('hidden');
+                
+                let successCount = 0;
+                
+                for (let i = 0; i < totalChunks; i++) {
+                    const chunk = validLines.slice(i * chunkSize, (i + 1) * chunkSize);
+                    const rawData = chunk.join('\n');
+                    
+                    const res = await apiCall('/api/admin/import-raw', {
+                        method: 'POST',
+                        body: JSON.stringify({ rawData })
+                    });
+                    
+                    if (!res.success) {
+                        throw new Error(`Lỗi ở dòng ${i * chunkSize + 1}: ` + res.error);
+                    }
+                    
+                    successCount += chunk.length;
+                    
+                    // Update progress
+                    const percent = Math.round(((i + 1) / totalChunks) * 100);
+                    progressBar.style.width = percent + '%';
+                    progressText.textContent = `Đã tải lên ${successCount} / ${validLines.length} (${percent}%)`;
+                }
+                
+                setTimeout(() => {
+                    progressModal.classList.add('hidden');
+                    showToast(`Tải lên hoàn tất ${successCount} mã!`, 'success');
+                    fileInput.value = '';
+                    loadStats();
+                }, 1000);
+                
+            } catch (err) {
+                document.getElementById('progressModal').classList.add('hidden');
+                showToast(err.message || 'Lỗi khi đọc file Excel', 'error');
+            }
+            setLoading('btnCsv', false);
+        };
+        
+        reader.readAsArrayBuffer(file);
     } catch (e) {
         showToast('Lỗi tải lên', 'error');
+        setLoading('btnCsv', false);
     }
-    setLoading('btnCsv', false);
 }
 
 async function resetState() {
