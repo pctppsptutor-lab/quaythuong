@@ -466,11 +466,35 @@ async function exportWinners() {
     } catch (error) { showToast(error.message, 'error'); }
 }
 
+async function clearAllParticipants() {
+    const confirmation = prompt('⚠️ CẢNH BÁO NGUY HIỂM:\nThao tác này sẽ XÓA TOÀN BỘ dữ liệu người tham gia và toàn bộ lịch sử trúng thưởng trong hệ thống!\n\nNếu bạn chắc chắn muốn xóa sạch, hãy gõ chữ "XOA" vào ô bên dưới:');
+    if (confirmation !== 'XOA') {
+        if (confirmation !== null) showToast('Đã hủy xóa (chưa nhập đúng chữ XOA)', 'info');
+        return;
+    }
+
+    setLoading('clearAllParticipantsBtn', true);
+    try {
+        const res = await apiCall('/api/admin/participants', { method: 'DELETE' });
+        if (res.success) {
+            showToast(res.message || 'Đã xóa toàn bộ danh sách thành công!', 'success');
+            loadStats();
+            loadParticipants(1);
+        } else {
+            showToast(res.error || 'Lỗi khi xóa', 'error');
+        }
+    } catch (e) {
+        showToast('Lỗi khi xóa danh sách', 'error');
+    }
+    setLoading('clearAllParticipantsBtn', false);
+}
+
 document.getElementById('loginBtn').addEventListener('click', login);
 document.getElementById('password').addEventListener('keydown', event => { if (event.key === 'Enter') login(); });
 document.getElementById('logoutBtn').addEventListener('click', logout);
 document.getElementById('refreshStatsBtn').addEventListener('click', loadStats);
-document.getElementById('refreshParticipantsBtn').addEventListener('click', loadParticipants);
+document.getElementById('refreshParticipantsBtn').addEventListener('click', () => loadParticipants(1));
+document.getElementById('clearAllParticipantsBtn').addEventListener('click', clearAllParticipants);
 document.getElementById('btnRaw').addEventListener('click', uploadRaw);
 document.getElementById('btnCsv').addEventListener('click', uploadCsv);
 document.getElementById('resetBtn').addEventListener('click', resetState);

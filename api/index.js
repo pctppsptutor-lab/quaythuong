@@ -332,6 +332,24 @@ app.get('/api/admin/stats', authenticateToken, async (req, res) => {
     }
 });
 
+app.delete('/api/admin/participants', authenticateToken, (req, res) => withTransactionLock(async () => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        await client.query('TRUNCATE TABLE participants RESTART IDENTITY');
+        await client.query('TRUNCATE TABLE winners RESTART IDENTITY');
+        await client.query('COMMIT');
+        audit(req.user.id, 'delete_all_participants');
+        return res.json({ success: true, message: 'Đã xóa toàn bộ danh sách thành công!' });
+    } catch (error) {
+        try { await client.query('ROLLBACK'); } catch {}
+        console.error('Clear all participants failed:', error.message);
+        return res.status(500).json({ error: 'Không thể xóa danh sách.' });
+    } finally {
+        client.release();
+    }
+}));
+
 app.delete('/api/admin/participants/:id', authenticateToken, async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: 'ID không hợp lệ.' });
