@@ -46,6 +46,9 @@ async function initDB() {
             is_drawn INTEGER DEFAULT 0
         )`);
         
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_participants_is_drawn ON participants(is_drawn)`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_participants_code ON participants(code)`);
+        
         await pool.query(`CREATE TABLE IF NOT EXISTS winners (
             id SERIAL PRIMARY KEY,
             code TEXT,

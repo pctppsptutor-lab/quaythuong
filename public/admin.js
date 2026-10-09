@@ -187,14 +187,37 @@ async function loadStats() {
     }
 }
 
-async function loadParticipants() {
+let currentPage = 1;
+const limit = 100;
+let debounceTimeout = null;
+
+async function loadParticipants(page = 1) {
     try {
-        allParticipants = await apiCall('/api/admin/participants');
+        const query = document.getElementById('searchInput').value.trim();
+        const res = await apiCall(`/api/admin/participants?page=${page}&limit=${limit}&search=${encodeURIComponent(query)}`);
+        
+        currentPage = res.page;
+        allParticipants = res.data;
+        
+        document.getElementById('currentPageLabel').textContent = res.page;
+        document.getElementById('totalPagesLabel').textContent = res.totalPages || 1;
+        document.getElementById('totalItemsLabel').textContent = res.total;
+        
+        document.getElementById('prevPageBtn').disabled = res.page <= 1;
+        document.getElementById('nextPageBtn').disabled = res.page >= (res.totalPages || 1);
+        
         renderTable(allParticipants);
     } catch (e) {
         console.error(e);
     }
 }
+
+document.getElementById('prevPageBtn').addEventListener('click', () => {
+    if (currentPage > 1) loadParticipants(currentPage - 1);
+});
+document.getElementById('nextPageBtn').addEventListener('click', () => {
+    loadParticipants(currentPage + 1);
+});
 
 function renderTable(data) {
     const tbody = document.querySelector('#codesTable tbody');
@@ -240,12 +263,11 @@ function renderTable(data) {
 }
 
 function filterTable() {
-    const query = document.getElementById('searchInput').value.toLowerCase();
-    const filtered = allParticipants.filter(p => 
-        p.code.toLowerCase().includes(query) || 
-        p.name.toLowerCase().includes(query)
-    );
-    renderTable(filtered);
+    clearTimeout(debounceTimeout);
+    debounceTimeout = setTimeout(() => {
+        currentPage = 1;
+        loadParticipants(1);
+    }, 500);
 }
 
 async function uploadRaw() {

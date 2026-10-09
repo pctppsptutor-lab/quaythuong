@@ -256,9 +256,41 @@ app.post('/api/admin/import', authenticateToken, upload.single('file'), (req, re
 
 app.get('/api/admin/participants', authenticateToken, async (req, res) => {
     try {
-        const result = await pool.query('SELECT id, code, name, weight, is_drawn FROM participants ORDER BY id DESC LIMIT 5000');
-        res.json(result.rows);
-    } catch (err) { res.status(500).json({ error: 'Lỗi cơ sở dữ liệu.' }); }
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = Math.max(1, Math.min(1000, parseInt(req.query.limit) || 100));
+        const offset = (page - 1) * limit;
+        const search = req.query.search ? `%${req.query.search}%` : null;
+
+        let queryStr = 'SELECT id, code, name, weight, is_drawn FROM participants';
+        let countQueryStr = 'SELECT COUNT(*) FROM participants';
+        const queryParams = [];
+
+        if (search) {
+            queryStr += ' WHERE code ILIKE $1 OR name ILIKE $1';
+            countQueryStr += ' WHERE code ILIKE $1 OR name ILIKE $1';
+            queryParams.push(search);
+        }
+
+        queryStr += ` ORDER BY id DESC LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
+        const finalParams = [...queryParams, limit, offset];
+
+        const [countResult, dataResult] = await Promise.all([
+            pool.query(countQueryStr, queryParams),
+            pool.query(queryStr, finalParams)
+        ]);
+
+        const total = parseInt(countResult.rows[0].count);
+        const totalPages = Math.ceil(total / limit);
+
+        res.json({
+            data: dataResult.rows,
+            total,
+            page,
+            totalPages
+        });
+    } catch (err) { 
+        res.status(500).json({ error: 'Lỗi cơ sở dữ liệu.' }); 
+    }
 });
 
 app.get('/api/admin/stats', authenticateToken, async (req, res) => {
