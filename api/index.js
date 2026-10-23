@@ -231,10 +231,15 @@ async function importRows(rows) {
     return withTransactionLock(async () => {
         const client = await pool.connect();
         try {
+            // Khử trùng lặp mã ngay trong cùng 1 gói để tránh lỗi PostgreSQL "ON CONFLICT DO UPDATE command cannot affect row a second time"
+            const uniqueMap = new Map();
+            for (const row of rows) {
+                uniqueMap.set(row.code, row);
+            }
             const codes = [];
             const names = [];
             const weights = [];
-            for (const row of rows) {
+            for (const row of uniqueMap.values()) {
                 codes.push(row.code);
                 names.push(row.name);
                 weights.push(row.weight);
@@ -249,7 +254,7 @@ async function importRows(rows) {
             `;
             await client.query(sql, [codes, names, weights]);
             await client.query('COMMIT');
-            return rows.length;
+            return codes.length;
         } catch (error) {
             try { await client.query('ROLLBACK'); } catch {}
             throw error;
@@ -263,7 +268,7 @@ app.post('/api/admin/import-raw', authenticateToken, async (req, res) => {
     const rawData = String(req.body?.rawData || '');
     if (!rawData) return res.status(400).json({ error: 'Không có dữ liệu.' });
     const lines = rawData.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-    if (lines.length > 10000) return res.status(400).json({ error: 'Tối đa 10.000 dòng mỗi lần nhập.' });
+    if (lines.length > 15000) return res.status(400).json({ error: 'Tối đa 15.000 dòng mỗi lần nhập.' });
     try {
         const rows = [];
         for (const line of lines) {
@@ -272,9 +277,9 @@ app.post('/api/admin/import-raw', authenticateToken, async (req, res) => {
             if (p) rows.push(p);
         }
         if (!rows.length) return res.status(400).json({ error: 'Không có dòng dữ liệu hợp lệ.' });
-        await importRows(rows);
-        audit(req.user.id, 'import_raw', `${rows.length} rows`);
-        return res.json({ success: true, count: rows.length, message: `Đã nhập/cập nhật ${rows.length} mã.` });
+        const insertedCount = await importRows(rows);
+        audit(req.user.id, 'import_raw', `${insertedCount} rows`);
+        return res.json({ success: true, count: insertedCount, message: `Đã nhập/cập nhật ${insertedCount} mã.` });
     } catch (error) { 
         console.error('Import raw error:', error);
         return res.status(400).json({ error: error.message || 'Dữ liệu không hợp lệ.' }); 

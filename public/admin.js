@@ -295,104 +295,149 @@ async function uploadRaw() {
 
 async function uploadCsv() {
     const fileInput = document.getElementById('csvFile');
-    if (!fileInput.files[0]) return showToast('Vui lòng chọn file', 'error');
+    if (!fileInput.files[0]) return showToast('Vui lòng chọn file Excel hoặc CSV', 'error');
+
+    const progressModal = document.getElementById('progressModal');
+    const progressTitle = document.getElementById('progressTitle');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    const progressSubText = document.getElementById('progressSubText');
 
     setLoading('btnCsv', true);
+    progressTitle.textContent = 'Đang đọc và giải nén file Excel...';
+    progressBar.style.width = '3%';
+    progressText.textContent = 'Đang phân tích dữ liệu (vui lòng đợi vài giây)...';
+    progressSubText.textContent = 'File lớn 200.000 dòng có thể mất 3 - 5 giây để giải nén trên trình duyệt.';
+    progressModal.classList.remove('hidden');
+
     try {
         const file = fileInput.files[0];
         const reader = new FileReader();
         
-        reader.onload = async (e) => {
-            try {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
-                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                
-                // Convert to array of objects
-                const rawRows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
-                if (rawRows.length < 2) throw new Error("File không có dữ liệu");
-                
-                // Find column indices
-                const headers = rawRows[0].map(h => String(h || '').toLowerCase().trim());
-                const codeIdx = headers.findIndex(h => h.includes('code') || h.includes('mã'));
-                const nameIdx = headers.findIndex(h => h.includes('name') || h.includes('tên'));
-                const weightIdx = headers.findIndex(h => h.includes('weight') || h.includes('tỉ') || h.includes('ti le'));
-                
-                if (codeIdx === -1) throw new Error("Không tìm thấy cột Code/Mã");
-                
-                // Filter and build TSV lines
-                const validLines = [];
-                for (let i = 1; i < rawRows.length; i++) {
-                    const row = rawRows[i];
-                    if (!row || !row.length) continue;
-                    let code = String(row[codeIdx] ?? '').trim();
-                    if (code.endsWith('.0')) code = code.slice(0, -2);
-                    if (!code) continue;
-                    const name = nameIdx !== -1 ? String(row[nameIdx] ?? '').trim() : '';
-                    const weight = weightIdx !== -1 ? String(row[weightIdx] ?? '1').trim() : '1';
-                    validLines.push(`${code}\t${name}\t${weight}`);
-                }
-                
-                if (validLines.length === 0) throw new Error("Không có dòng dữ liệu hợp lệ trong file");
-                
-                // Chunk upload (3000 rows/chunk with bulk UNNEST completes in ~1s each)
-                const chunkSize = 3000;
-                const totalChunks = Math.ceil(validLines.length / chunkSize);
-                
-                const progressModal = document.getElementById('progressModal');
-                const progressBar = document.getElementById('progressBar');
-                const progressText = document.getElementById('progressText');
-                
-                progressModal.classList.remove('hidden');
-                
-                let successCount = 0;
-                
-                for (let i = 0; i < totalChunks; i++) {
-                    const chunk = validLines.slice(i * chunkSize, (i + 1) * chunkSize);
-                    const rawData = chunk.join('\n');
+        reader.onload = (e) => {
+            // Nhường 50ms để trình duyệt kịp vẽ Modal trước khi giải nén file nặng
+            setTimeout(async () => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
                     
-                    let retries = 3;
-                    let res;
-                    while (retries > 0) {
-                        try {
-                            res = await apiCall('/api/admin/import-raw', {
-                                method: 'POST',
-                                body: JSON.stringify({ rawData })
-                            });
-                            if (res && res.success) break;
-                            throw new Error(res?.error || 'Lỗi lưu dữ liệu');
-                        } catch (chunkErr) {
-                            retries--;
-                            if (retries === 0) throw new Error(`Lỗi tại gói ${i + 1}/${totalChunks} (dòng ${i * chunkSize + 1}): ${chunkErr.message}`);
-                            progressText.textContent = `Mạng chập chờn, đang tự động thử lại gói ${i + 1}/${totalChunks}...`;
-                            await new Promise(r => setTimeout(r, 1500));
-                        }
+                    const rawRows = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
+                    if (rawRows.length < 1) throw new Error("File không có dữ liệu");
+                    
+                    // Nhận diện dòng tiêu đề thông minh (hoặc tự động lấy cột 1 nếu không có tiêu đề)
+                    const firstRowCells = rawRows[0].map(h => String(h || '').toLowerCase().trim());
+                    let codeIdx = firstRowCells.findIndex(h => h.includes('code') || h.includes('mã') || h.includes('ma') || h.includes('sbd') || h.includes('số') || h.includes('vé'));
+                    let nameIdx = firstRowCells.findIndex(h => h.includes('name') || h.includes('tên') || h.includes('ten') || h.includes('họ'));
+                    let weightIdx = firstRowCells.findIndex(h => h.includes('weight') || h.includes('tỉ') || h.includes('ti le') || h.includes('ưu tiên'));
+                    
+                    let startRow = 1;
+                    if (codeIdx === -1) {
+                        // Kiểm tra xem dòng đầu tiên có phải là dữ liệu luôn không (không có dòng tiêu đề)
+                        const firstCellDigits = String(rawRows[0][0] ?? '').replace(/\D/g, '');
+                        codeIdx = 0;
+                        if (nameIdx === -1 && rawRows[0].length > 1) nameIdx = 1;
+                        if (weightIdx === -1 && rawRows[0].length > 2) weightIdx = 2;
+                        if (firstCellDigits.length > 0) startRow = 0;
+                    } else if (nameIdx === -1 && rawRows[0].length > 1) {
+                        nameIdx = codeIdx === 0 ? 1 : 0;
                     }
                     
-                    successCount += (res && res.count) ? res.count : chunk.length;
+                    let totalRowsRead = 0;
+                    let emptyOrSkipped = 0;
+                    let duplicateCount = 0;
+                    const uniqueMap = new Map();
+
+                    for (let i = startRow; i < rawRows.length; i++) {
+                        const row = rawRows[i];
+                        if (!row || !row.length) {
+                            emptyOrSkipped++;
+                            continue;
+                        }
+                        totalRowsRead++;
+                        let rawCode = String(row[codeIdx] ?? '').trim();
+                        if (rawCode.endsWith('.0')) rawCode = rawCode.slice(0, -2);
+                        if (!rawCode) {
+                            emptyOrSkipped++;
+                            continue;
+                        }
+                        const digitsOnly = rawCode.replace(/\D/g, '');
+                        const finalCode = digitsOnly.length > 0 ? (digitsOnly.length <= 6 ? digitsOnly.padStart(6, '0') : digitsOnly.slice(-6)) : rawCode.slice(0, 32);
+                        if (!finalCode) {
+                            emptyOrSkipped++;
+                            continue;
+                        }
+                        const name = (nameIdx !== -1 ? String(row[nameIdx] ?? '').trim() : '') || 'Ẩn danh';
+                        const weight = (weightIdx !== -1 ? String(row[weightIdx] ?? '1').trim() : '1') || '1';
+                        
+                        if (uniqueMap.has(finalCode)) {
+                            duplicateCount++;
+                        }
+                        uniqueMap.set(finalCode, `${finalCode}\t${name}\t${weight}`);
+                    }
                     
-                    // Update progress
-                    const percent = Math.round(((i + 1) / totalChunks) * 100);
-                    progressBar.style.width = percent + '%';
-                    progressText.textContent = `Đã tải lên ${successCount} / ${validLines.length} (${percent}%)`;
-                }
-                
-                setTimeout(() => {
+                    const validLines = Array.from(uniqueMap.values());
+                    if (validLines.length === 0) throw new Error("Không tìm thấy dòng dữ liệu hợp lệ nào trong file");
+                    
+                    // Tải theo gói 5.000 dòng (kết hợp UNNEST chỉ mất ~1s/gói)
+                    const chunkSize = 5000;
+                    const totalChunks = Math.ceil(validLines.length / chunkSize);
+                    
+                    progressTitle.textContent = 'Đang đồng bộ lên máy chủ Database...';
+                    progressSubText.textContent = `Đọc ${totalRowsRead.toLocaleString('vi-VN')} dòng | Mã duy nhất: ${validLines.length.toLocaleString('vi-VN')} | Trùng mã đã gộp: ${duplicateCount.toLocaleString('vi-VN')} | Bỏ qua: ${emptyOrSkipped.toLocaleString('vi-VN')}`;
+                    
+                    let successCount = 0;
+                    
+                    for (let i = 0; i < totalChunks; i++) {
+                        const chunk = validLines.slice(i * chunkSize, (i + 1) * chunkSize);
+                        const rawData = chunk.join('\n');
+                        
+                        let retries = 3;
+                        let res;
+                        while (retries > 0) {
+                            try {
+                                res = await apiCall('/api/admin/import-raw', {
+                                    method: 'POST',
+                                    body: JSON.stringify({ rawData })
+                                });
+                                if (res && res.success) break;
+                                throw new Error(res?.error || 'Lỗi lưu dữ liệu');
+                            } catch (chunkErr) {
+                                retries--;
+                                if (retries === 0) throw new Error(`Lỗi tại gói ${i + 1}/${totalChunks}: ${chunkErr.message}`);
+                                progressText.textContent = `Mạng chập chờn, đang tự động thử lại gói ${i + 1}/${totalChunks}...`;
+                                await new Promise(r => setTimeout(r, 1500));
+                            }
+                        }
+                        
+                        successCount += (res && res.count) ? res.count : chunk.length;
+                        
+                        const percent = Math.round(((i + 1) / totalChunks) * 100);
+                        progressBar.style.width = percent + '%';
+                        progressText.textContent = `Đã tải lên ${successCount.toLocaleString('vi-VN')} / ${validLines.length.toLocaleString('vi-VN')} mã (${percent}%)`;
+                    }
+                    
+                    setTimeout(() => {
+                        progressModal.classList.add('hidden');
+                        const summaryMsg = `Hoàn tất nạp ${successCount.toLocaleString('vi-VN')} mã! (Đọc: ${totalRowsRead.toLocaleString('vi-VN')} dòng, Trùng mã gộp: ${duplicateCount.toLocaleString('vi-VN')}, Trống: ${emptyOrSkipped.toLocaleString('vi-VN')})`;
+                        showToast(summaryMsg, 'success');
+                        fileInput.value = '';
+                        loadStats();
+                        loadParticipants(1);
+                    }, 800);
+                    
+                } catch (err) {
                     progressModal.classList.add('hidden');
-                    showToast(`Tải lên hoàn tất ${successCount} mã!`, 'success');
-                    fileInput.value = '';
-                    loadStats();
-                }, 1000);
-                
-            } catch (err) {
-                document.getElementById('progressModal').classList.add('hidden');
-                showToast(err.message || 'Lỗi khi đọc file Excel', 'error');
-            }
-            setLoading('btnCsv', false);
+                    showToast(err.message || 'Lỗi khi đọc file Excel', 'error');
+                } finally {
+                    setLoading('btnCsv', false);
+                }
+            }, 50);
         };
         
         reader.readAsArrayBuffer(file);
     } catch (e) {
+        progressModal.classList.add('hidden');
         showToast('Lỗi tải lên', 'error');
         setLoading('btnCsv', false);
     }

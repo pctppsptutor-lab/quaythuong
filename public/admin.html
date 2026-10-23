@@ -359,16 +359,17 @@
     </div>
     
     <!-- Progress Modal -->
-    <div id="progressModal" class="hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white;">
-        <h2 style="margin-bottom: 20px;">Đang tải lên dữ liệu...</h2>
-        <div style="width: 80%; max-width: 500px; height: 20px; background: #333; border-radius: 10px; overflow: hidden;">
-            <div id="progressBar" style="width: 0%; height: 100%; background: #2ecc71; transition: width 0.3s;"></div>
+    <div id="progressModal" class="hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 10000; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; padding: 20px; text-align: center;">
+        <h2 id="progressTitle" style="margin-bottom: 20px;">Đang xử lý dữ liệu...</h2>
+        <div style="width: 80%; max-width: 520px; height: 22px; background: #333; border-radius: 11px; overflow: hidden; box-shadow: inset 0 2px 5px rgba(0,0,0,0.5);">
+            <div id="progressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #2ecc71, #27ae60); transition: width 0.25s;"></div>
         </div>
-        <p id="progressText" style="margin-top: 10px; font-weight: bold;">0%</p>
+        <p id="progressText" style="margin-top: 12px; font-weight: bold; font-size: 1.1rem;">0%</p>
+        <p id="progressSubText" style="margin-top: 6px; font-size: 0.9rem; color: #ccc;">Vui lòng không đóng trình duyệt trong lúc đang tải...</p>
     </div>
 
-    <!-- SheetJS for Excel Parsing -->
-    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <!-- SheetJS for Excel Parsing (Local) -->
+    <script src="xlsx.full.min.js"></script>
     <script src="admin.js"></script>
 </body>
 </html>
