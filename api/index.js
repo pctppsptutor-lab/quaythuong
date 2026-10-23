@@ -34,7 +34,7 @@ app.use(cors({ origin(origin, callback) {
     if (!origin || allowedOriginsConfig === '*' || allowedOrigins.has(origin)) return callback(null, true);
     return callback(new Error('Origin not allowed'));
 } }));
-app.use(express.json({ limit: '128kb' }));
+app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, '../public'), { index: 'index.html' }));
 
 const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 1000, standardHeaders: 'draft-8', legacyHeaders: false });
@@ -61,13 +61,15 @@ function validWeight(value) {
     return Number.isSafeInteger(weight) && weight >= 1 && weight <= 1000000 ? weight : null;
 }
 function normalizeParticipant(codeValue, nameValue, weightValue) {
-    const code = cleanText(codeValue, 32);
+    let code = cleanText(codeValue, 32);
+    if (code.endsWith('.0')) code = code.slice(0, -2);
     const name = cleanText(nameValue || 'Ẩn danh', 120);
-    const weight = validWeight(weightValue == null || weightValue === '' ? 1 : weightValue);
-    if (!code) throw new Error('Mã dự thưởng không được để trống.');
-    if (!/^\d{1,6}$/.test(code)) throw new Error(`Mã ${code} phải gồm từ 1 đến 6 chữ số.`);
-    if (!weight) throw new Error(`Tỷ lệ của mã ${code} phải là số nguyên từ 1 đến 1.000.000.`);
-    return { code, name, weight };
+    const weight = validWeight(weightValue == null || weightValue === '' ? 1 : weightValue) || 1;
+    if (!code) return null;
+    const digitsOnly = code.replace(/\D/g, '');
+    const finalCode = digitsOnly.length > 0 ? (digitsOnly.length <= 6 ? digitsOnly.padStart(6, '0') : digitsOnly.slice(-6)) : code.slice(0, 32);
+    if (!finalCode) return null;
+    return { code: finalCode, name, weight };
 }
 
 function audit(adminId, action, details = '') { 
@@ -225,17 +227,29 @@ app.post('/api/spin', spinLimiter, authenticateToken, (req, res) => withTransact
 }));
 
 async function importRows(rows) {
+    if (!rows || !rows.length) return 0;
     return withTransactionLock(async () => {
         const client = await pool.connect();
         try {
-            await client.query('BEGIN');
+            const codes = [];
+            const names = [];
+            const weights = [];
             for (const row of rows) {
-                await client.query(
-                    'INSERT INTO participants (code, name, weight) VALUES ($1, $2, $3) ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, weight = EXCLUDED.weight', 
-                    [row.code, row.name, row.weight]
-                );
+                codes.push(row.code);
+                names.push(row.name);
+                weights.push(row.weight);
             }
+            await client.query('BEGIN');
+            const sql = `
+                INSERT INTO participants (code, name, weight)
+                SELECT * FROM UNNEST($1::text[], $2::text[], $3::int[])
+                ON CONFLICT (code) DO UPDATE SET 
+                    name = EXCLUDED.name, 
+                    weight = EXCLUDED.weight
+            `;
+            await client.query(sql, [codes, names, weights]);
             await client.query('COMMIT');
+            return rows.length;
         } catch (error) {
             try { await client.query('ROLLBACK'); } catch {}
             throw error;
@@ -249,16 +263,22 @@ app.post('/api/admin/import-raw', authenticateToken, async (req, res) => {
     const rawData = String(req.body?.rawData || '');
     if (!rawData) return res.status(400).json({ error: 'Không có dữ liệu.' });
     const lines = rawData.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-    if (lines.length > 5000) return res.status(400).json({ error: 'Tối đa 5.000 dòng mỗi lần nhập.' });
+    if (lines.length > 10000) return res.status(400).json({ error: 'Tối đa 10.000 dòng mỗi lần nhập.' });
     try {
-        const rows = lines.map(line => {
+        const rows = [];
+        for (const line of lines) {
             const parts = line.includes('\t') ? line.split('\t') : line.split(',');
-            return normalizeParticipant(parts[0], parts[1], parts[2]);
-        });
+            const p = normalizeParticipant(parts[0], parts[1], parts[2]);
+            if (p) rows.push(p);
+        }
+        if (!rows.length) return res.status(400).json({ error: 'Không có dòng dữ liệu hợp lệ.' });
         await importRows(rows);
         audit(req.user.id, 'import_raw', `${rows.length} rows`);
-        return res.json({ success: true, message: `Đã nhập/cập nhật ${rows.length} mã.` });
-    } catch (error) { return res.status(400).json({ error: error.message || 'Dữ liệu không hợp lệ.' }); }
+        return res.json({ success: true, count: rows.length, message: `Đã nhập/cập nhật ${rows.length} mã.` });
+    } catch (error) { 
+        console.error('Import raw error:', error);
+        return res.status(400).json({ error: error.message || 'Dữ liệu không hợp lệ.' }); 
+    }
 });
 
 app.post('/api/admin/import', authenticateToken, upload.single('file'), (req, res) => {

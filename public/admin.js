@@ -325,17 +325,18 @@ async function uploadCsv() {
                 for (let i = 1; i < rawRows.length; i++) {
                     const row = rawRows[i];
                     if (!row || !row.length) continue;
-                    const code = row[codeIdx] || '';
+                    let code = String(row[codeIdx] ?? '').trim();
+                    if (code.endsWith('.0')) code = code.slice(0, -2);
                     if (!code) continue;
-                    const name = nameIdx !== -1 ? (row[nameIdx] || '') : '';
-                    const weight = weightIdx !== -1 ? (row[weightIdx] || '1') : '1';
+                    const name = nameIdx !== -1 ? String(row[nameIdx] ?? '').trim() : '';
+                    const weight = weightIdx !== -1 ? String(row[weightIdx] ?? '1').trim() : '1';
                     validLines.push(`${code}\t${name}\t${weight}`);
                 }
                 
-                if (validLines.length === 0) throw new Error("Không có dòng dữ liệu hợp lệ");
+                if (validLines.length === 0) throw new Error("Không có dòng dữ liệu hợp lệ trong file");
                 
-                // Chunk upload
-                const chunkSize = 4000;
+                // Chunk upload (3000 rows/chunk with bulk UNNEST completes in ~1s each)
+                const chunkSize = 3000;
                 const totalChunks = Math.ceil(validLines.length / chunkSize);
                 
                 const progressModal = document.getElementById('progressModal');
@@ -368,7 +369,7 @@ async function uploadCsv() {
                         }
                     }
                     
-                    successCount += chunk.length;
+                    successCount += (res && res.count) ? res.count : chunk.length;
                     
                     // Update progress
                     const percent = Math.round(((i + 1) / totalChunks) * 100);
