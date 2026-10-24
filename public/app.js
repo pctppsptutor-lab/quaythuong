@@ -149,11 +149,6 @@ function stopMarquee() {
 }
 
 async function loadWinners() {
-    if (!presenterToken) {
-        winnersList.replaceChildren();
-        winnersCount.textContent = '(đăng nhập để xem)';
-        return;
-    }
     winnersList.setAttribute('aria-busy', 'true');
     winnersList.replaceChildren();
     for (let i = 0; i < 4; i++) {
