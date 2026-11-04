@@ -19,7 +19,7 @@ const configuredSecret = process.env.JWT_SECRET;
 if (configuredSecret && configuredSecret.length < 32) throw new Error('JWT_SECRET must be at least 32 characters.');
 const JWT_SECRET = configuredSecret || crypto.randomBytes(48).toString('base64url');
 if (!configuredSecret) console.warn('JWT_SECRET is not configured; sessions will be invalid after restart.');
-const allowedOriginsConfig = process.env.ALLOWED_ORIGINS || `http://localhost:${PORT},http://127.0.0.1:${PORT}`;
+const allowedOriginsConfig = process.env.ALLOWED_ORIGINS || '*';
 const allowedOrigins = new Set(allowedOriginsConfig.split(',').map(value => value.trim()).filter(Boolean));
 
 app.disable('x-powered-by');
@@ -228,14 +228,25 @@ app.post('/api/checkin', checkinLimiter, async (req, res) => {
     }
 });
 
-// Thống kê nhanh số lượng điểm danh
+// Thống kê nhanh số lượng điểm danh (có bộ đệm 3 giây chống nghẽn kết nối Database khi đông người quét QR)
+let cachedStats = null;
+let lastStatsTime = 0;
+
 app.get('/api/checkin/stats', async (req, res) => {
+    const now = Date.now();
+    if (cachedStats && now - lastStatsTime < 3000) {
+        return res.json(cachedStats);
+    }
     try {
         const statsRes = await pool.query('SELECT COUNT(*) as total, SUM(CASE WHEN is_drawn = 1 THEN 1 ELSE 0 END) as drawn FROM participants');
         const total = parseInt(statsRes.rows[0].total || 0);
         const drawn = parseInt(statsRes.rows[0].drawn || 0);
-        return res.json({ total, remain: total - drawn, drawn });
+        cachedStats = { total, remain: total - drawn, drawn };
+        lastStatsTime = now;
+        res.setHeader('Cache-Control', 'public, max-age=2, stale-while-revalidate=5');
+        return res.json(cachedStats);
     } catch (err) {
+        if (cachedStats) return res.json(cachedStats);
         return res.status(500).json({ error: 'Lỗi lấy thống kê.' });
     }
 });

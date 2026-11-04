@@ -358,7 +358,16 @@ function onSpinComplete(code, name, isBatch) {
         window.currentBatchWinners.forEach(w => {
             const card = document.createElement('div');
             card.className = 'batch-winner-card';
-            card.innerHTML = `<div class="batch-w-code">${w.code}</div><div class="batch-w-name">${w.name}</div>`;
+            
+            const codeEl = document.createElement('div');
+            codeEl.className = 'batch-w-code';
+            codeEl.textContent = w.code;
+
+            const nameEl = document.createElement('div');
+            nameEl.className = 'batch-w-name';
+            nameEl.textContent = w.name;
+
+            card.append(codeEl, nameEl);
             list.appendChild(card);
         });
         modal.classList.remove('hidden');
