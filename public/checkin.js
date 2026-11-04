@@ -30,8 +30,8 @@ async function fetchCounter() {
         // Không ảnh hưởng giao diện chính
     }
 }
+// Tải số lượng người tham gia ban đầu
 fetchCounter();
-setInterval(fetchCounter, 5000);
 
 // Xử lý gửi Form
 if (checkinForm) {

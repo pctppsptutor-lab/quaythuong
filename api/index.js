@@ -38,10 +38,16 @@ app.use(cors({ origin(origin, callback) {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, '../public'), { index: 'index.html' }));
 
-const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 1000, standardHeaders: 'draft-8', legacyHeaders: false });
+const apiLimiter = rateLimit({ 
+    windowMs: 15 * 60 * 1000, 
+    limit: 5000, 
+    standardHeaders: 'draft-8', 
+    legacyHeaders: false,
+    skip: (req) => req.path.startsWith('/checkin') || req.path.startsWith('/qr')
+});
 const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 15, standardHeaders: 'draft-8', legacyHeaders: false });
 const spinLimiter = rateLimit({ windowMs: 60 * 1000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false });
-const checkinLimiter = rateLimit({ windowMs: 60 * 1000, limit: 300, standardHeaders: 'draft-8', legacyHeaders: false });
+const checkinLimiter = rateLimit({ windowMs: 60 * 1000, limit: 1500, standardHeaders: 'draft-8', legacyHeaders: false });
 app.use('/api/', apiLimiter);
 
 // Sử dụng /tmp cho Vercel compatibility
