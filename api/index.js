@@ -10,6 +10,7 @@ const fs = require('fs');
 const os = require('os');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
+const QRCode = require('qrcode');
 const pool = require('./db');
 
 const app = express();
@@ -40,6 +41,7 @@ app.use(express.static(path.join(__dirname, '../public'), { index: 'index.html' 
 const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 1000, standardHeaders: 'draft-8', legacyHeaders: false });
 const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 15, standardHeaders: 'draft-8', legacyHeaders: false });
 const spinLimiter = rateLimit({ windowMs: 60 * 1000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false });
+const checkinLimiter = rateLimit({ windowMs: 60 * 1000, limit: 300, standardHeaders: 'draft-8', legacyHeaders: false });
 app.use('/api/', apiLimiter);
 
 // Sử dụng /tmp cho Vercel compatibility
@@ -63,12 +65,17 @@ function validWeight(value) {
 function normalizeParticipant(codeValue, nameValue, weightValue) {
     let code = cleanText(codeValue, 32);
     if (code.endsWith('.0')) code = code.slice(0, -2);
-    const name = cleanText(nameValue || 'Ẩn danh', 120);
+    let rawCode = code.toUpperCase().replace(/[^A-Z0-9_\-]/g, '').trim();
+    if (!rawCode) return null;
+    
+    // Nếu là mã chỉ gồm số và ngắn hơn 6 số, đệm số 0 ở đầu (ví dụ: 123 -> 000123)
+    let finalCode = rawCode;
+    if (/^\d+$/.test(rawCode) && rawCode.length < 6) {
+        finalCode = rawCode.padStart(6, '0');
+    }
+    
+    const name = cleanText(nameValue || ('Gia sư ' + finalCode), 120);
     const weight = validWeight(weightValue == null || weightValue === '' ? 1 : weightValue) || 1;
-    if (!code) return null;
-    const digitsOnly = code.replace(/\D/g, '');
-    const finalCode = digitsOnly.length > 0 ? (digitsOnly.length <= 6 ? digitsOnly.padStart(6, '0') : digitsOnly.slice(-6)) : code.slice(0, 32);
-    if (!finalCode) return null;
     return { code: finalCode, name, weight };
 }
 
@@ -133,6 +140,92 @@ app.get('/api/winners', async (req, res) => {
         res.json(result.rows);
     } catch (err) {
         res.status(500).json({ error: 'Lỗi cơ sở dữ liệu.' });
+    }
+});
+
+// Tạo mã QR cho trang điểm danh
+app.get('/api/qr', async (req, res) => {
+    try {
+        const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+        const host = req.get('host');
+        const checkinUrl = `${protocol}://${host}/checkin.html`;
+        
+        if (req.query.format === 'json') {
+            const dataUrl = await QRCode.toDataURL(checkinUrl, {
+                width: 360,
+                margin: 2,
+                color: { dark: '#190934', light: '#ffffff' }
+            });
+            return res.json({ checkinUrl, dataUrl });
+        }
+        
+        const buffer = await QRCode.toBuffer(checkinUrl, {
+            type: 'png',
+            width: 360,
+            margin: 2,
+            color: { dark: '#190934', light: '#ffffff' }
+        });
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Cache-Control', 'public, max-age=60');
+        return res.send(buffer);
+    } catch (err) {
+        console.error('QR error:', err);
+        return res.status(500).json({ error: 'Lỗi tạo mã QR' });
+    }
+});
+
+// Điểm danh gia sư qua QR form
+app.post('/api/checkin', checkinLimiter, async (req, res) => {
+    try {
+        const rawCode = req.body?.code;
+        if (!rawCode) return res.status(400).json({ error: 'Vui lòng nhập mã gia sư.' });
+        
+        const participant = normalizeParticipant(rawCode, '', 1);
+        if (!participant || !participant.code) {
+            return res.status(400).json({ error: 'Mã gia sư không hợp lệ. Vui lòng chỉ nhập chữ và số.' });
+        }
+        
+        // Kiểm tra xem mã đã tồn tại chưa
+        const existing = await pool.query('SELECT code, name, is_drawn FROM participants WHERE code = $1', [participant.code]);
+        if (existing.rows.length > 0) {
+            return res.json({
+                success: true,
+                alreadyRegistered: true,
+                code: existing.rows[0].code,
+                name: existing.rows[0].name,
+                message: 'Mã gia sư đã có trong danh sách quay thưởng!'
+            });
+        }
+        
+        // Thêm mã mới vào danh sách
+        await pool.query(
+            'INSERT INTO participants (code, name, weight, is_drawn) VALUES ($1, $2, 1, 0)',
+            [participant.code, participant.name]
+        );
+        
+        audit(null, 'checkin_qr', `code=${participant.code}`);
+        return res.json({
+            success: true,
+            alreadyRegistered: false,
+            code: participant.code,
+            name: participant.name,
+            message: 'Điểm danh thành công! Mã của bạn đã được đưa vào vòng quay.'
+        });
+    } catch (err) {
+        console.error('Checkin error:', err);
+        return res.status(500).json({ error: 'Lỗi máy chủ khi điểm danh. Vui lòng thử lại.' });
+    }
+});
+
+// Thống kê nhanh số lượng điểm danh
+app.get('/api/checkin/stats', async (req, res) => {
+    try {
+        const statsRes = await pool.query('SELECT COUNT(*) as total, SUM(CASE WHEN is_drawn = 1 THEN 1 ELSE 0 END) as drawn FROM participants');
+        const total = parseInt(statsRes.rows[0].total || 0);
+        const drawn = parseInt(statsRes.rows[0].drawn || 0);
+        return res.json({ total, remain: total - drawn, drawn });
+    } catch (err) {
+        return res.status(500).json({ error: 'Lỗi lấy thống kê.' });
     }
 });
 

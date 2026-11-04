@@ -241,6 +241,33 @@
                 </div>
             </div>
 
+            <div class="panel" style="background: linear-gradient(135deg, #ffffff 0%, #f4eefd 100%); border: 1.5px solid rgba(67, 28, 122, 0.2);">
+                <div class="panel-header" style="margin-bottom: 15px;">
+                    <h2 class="panel-title" style="color: var(--primary);"><ion-icon name="qr-code-outline"></ion-icon> Mã QR Điểm Danh Cho Gia Sư (Tự Điền Mã)</h2>
+                </div>
+                <div style="display: flex; gap: 25px; align-items: center; flex-wrap: wrap;">
+                    <div style="background: #fff; padding: 12px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); border: 1px solid #eee;">
+                        <img id="adminQrImg" src="/api/qr" alt="Mã QR Điểm Danh" width="160" height="160" style="display: block; border-radius: 8px;">
+                    </div>
+                    <div style="flex: 1; min-width: 260px;">
+                        <p style="color: #444; font-size: 0.95rem; line-height: 1.6; margin-bottom: 14px;">
+                            Chiếu mã QR này lên màn hình hoặc gửi link vào nhóm cho các gia sư quét điện thoại để nhập mã nhân viên. Mã sẽ <strong>tự động bay thẳng vào danh sách quay thưởng</strong> ngay lập tức!
+                        </p>
+                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                            <button class="btn btn-sm" id="adminCopyQrLinkBtn">
+                                <ion-icon name="copy-outline"></ion-icon> Sao Chép Link Điểm Danh
+                            </button>
+                            <a href="/checkin.html" target="_blank" class="btn btn-sm btn-outline">
+                                <ion-icon name="open-outline"></ion-icon> Mở Trang Điểm Danh
+                            </a>
+                            <a href="/api/qr" download="QR_Diem_Danh_Gia_Su.png" class="btn btn-sm btn-outline">
+                                <ion-icon name="download-outline"></ion-icon> Tải Ảnh QR
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="panel">
                 <div class="panel-header">
                     <h2 class="panel-title"><ion-icon name="cloud-upload-outline"></ion-icon> Nhập Dữ Liệu Nhanh</h2>

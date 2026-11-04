@@ -19,6 +19,7 @@
                 <img class="brand-logo" src="logo.svg" alt="Edupia" width="270" height="74">
             </div>
             <div class="top-actions">
+                <button class="btn-sm" id="openQrBtn" style="background: linear-gradient(135deg, #f9d423, #ffaa00); color: #190934; font-weight: 800; border: none; box-shadow: 0 4px 12px rgba(249, 212, 35, 0.4);">📱 Quét QR Điểm Danh</button>
                 <button class="btn-sm" id="exportBtn">📥 Xuất danh sách trúng thưởng</button>
                 <button class="btn-sm" id="reloadBtn">🔄 Làm mới</button>
             </div>
@@ -107,6 +108,33 @@
             <div style="display: flex; justify-content: center; gap: 15px; margin-top: 20px; flex-wrap: wrap;">
                 <button id="copyBatchWinnersBtn" class="btn-spin" style="padding: 12px 25px; font-size: 1.1rem; background: linear-gradient(180deg, #2ecc71 0%, #27ae60 100%); color: #fff; box-shadow: 0 4px 0 #1e8449;">📋 Sao chép danh sách</button>
                 <button id="closeBatchModal" class="btn-spin" style="padding: 12px 35px; font-size: 1.1rem;">Đóng</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Quét QR Điểm Danh -->
+    <div id="qrModal" class="modal hidden">
+        <div class="modal-content" style="max-width: 480px; text-align: center;">
+            <h2 class="modal-title" style="font-size: 2rem; margin-bottom: 8px;">📱 ĐIỂM DANH GIA SƯ</h2>
+            <p style="color: #d1c4e9; font-size: 0.95rem; margin-bottom: 20px;">
+                Quét mã QR bằng điện thoại để nhập mã nhân viên gia sư và vào thẳng danh sách quay thưởng!
+            </p>
+            
+            <div style="background: #ffffff; padding: 15px; border-radius: 16px; display: inline-block; box-shadow: 0 10px 35px rgba(0,0,0,0.6); margin-bottom: 18px;">
+                <img id="qrImageModal" src="/api/qr" alt="QR Code Điểm Danh" width="280" height="280" style="display: block; border-radius: 8px;">
+            </div>
+
+            <div id="qrLiveCount" style="font-size: 1.25rem; font-weight: 800; color: var(--gold); margin-bottom: 18px; text-shadow: 0 2px 8px rgba(0,0,0,0.5);">
+                🔥 Đang cập nhật số lượng...
+            </div>
+
+            <div style="display: flex; justify-content: center; gap: 12px; flex-wrap: wrap;">
+                <button id="copyCheckinLinkBtn" class="btn-spin" style="padding: 12px 22px; font-size: 1rem; background: linear-gradient(180deg, #3498db 0%, #2980b9 100%); color: #fff; box-shadow: 0 4px 0 #1f618d;">
+                    🔗 Sao chép link
+                </button>
+                <button id="closeQrModalBtn" class="btn-spin" style="padding: 12px 30px; font-size: 1rem;">
+                    Đóng
+                </button>
             </div>
         </div>
     </div>

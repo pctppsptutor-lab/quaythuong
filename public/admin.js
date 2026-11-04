@@ -535,6 +535,19 @@ async function clearAllParticipants() {
     setLoading('clearAllParticipantsBtn', false);
 }
 
+const adminCopyQrBtn = document.getElementById('adminCopyQrLinkBtn');
+if (adminCopyQrBtn) {
+    adminCopyQrBtn.addEventListener('click', async () => {
+        const link = `${window.location.origin}/checkin.html`;
+        try {
+            await navigator.clipboard.writeText(link);
+            showToast('Đã sao chép link điểm danh: ' + link, 'success');
+        } catch(e) {
+            prompt('Sao chép đường link điểm danh này:', link);
+        }
+    });
+}
+
 document.getElementById('loginBtn').addEventListener('click', login);
 document.getElementById('password').addEventListener('keydown', event => { if (event.key === 'Enter') login(); });
 document.getElementById('logoutBtn').addEventListener('click', logout);

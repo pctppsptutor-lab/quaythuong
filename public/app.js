@@ -279,57 +279,66 @@ spinBtn.addEventListener('click', async () => {
     }
 });
 
+const CHAR_POOL = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
 function animateSlots(targetCode, winnerName, isBatch) {
-    const codeStr = String(targetCode).padStart(6, '0');
+    const rawStr = String(targetCode).toUpperCase().trim();
+    // Đảm bảo ít nhất 6 ô lồng quay
+    const codeStr = rawStr.length < 6 ? rawStr.padStart(6, '0') : rawStr;
     
-    const slots = [
-        document.getElementById('slot-0'),
-        document.getElementById('slot-1'),
-        document.getElementById('slot-2'),
-        document.getElementById('slot-3'),
-        document.getElementById('slot-4'),
-        document.getElementById('slot-5')
-    ];
+    const slotsContainer = document.querySelector('.slots');
+    slotsContainer.innerHTML = '';
+    const slots = [];
     
-    // Clear locked classes
-    slots.forEach(slot => slot.classList.remove('locked'));
+    for (let i = 0; i < codeStr.length; i++) {
+        const slotEl = document.createElement('div');
+        slotEl.className = 'slot';
+        const innerEl = document.createElement('div');
+        innerEl.className = 'slot-inner';
+        innerEl.id = 'slot-' + i;
+        innerEl.textContent = '0';
+        slotEl.appendChild(innerEl);
+        slotsContainer.appendChild(slotEl);
+        slots.push(innerEl);
+    }
     
     startMarquee();
     
+    const totalSlots = slots.length;
     slots.forEach((slot, index) => {
-        const targetDigit = parseInt(codeStr[index], 10);
-        const extraSpins = 20 + (index * 10); // Less spins to be faster
-        const finalVal = extraSpins * 10 + targetDigit; 
+        const targetChar = codeStr[index];
+        const charIdx = CHAR_POOL.indexOf(targetChar);
+        const finalCharIdx = charIdx >= 0 ? charIdx : 0;
+        const extraSpins = 12 + (index * 6);
+        const totalSteps = extraSpins * CHAR_POOL.length + finalCharIdx;
         
-        const obj = { val: 0 };
-        
-        // Fast for first 4 slots, dramatic slowdown for the last 2
-        let spinDuration = 1 + (index * 0.6); // 1s, 1.6s, 2.2s, 2.8s
-        if (index === 4) spinDuration += 1.5; // 4.9s
-        if (index === 5) spinDuration += 3; // 7.0s
-        if (isBatch) spinDuration = spinDuration * 0.5; // Faster if batch
-        
-        const easeType = index >= 4 ? "power4.out" : "power2.out";
+        let spinDuration = 1 + (index * 0.45);
+        if (index === totalSlots - 2) spinDuration += 1.0;
+        if (index === totalSlots - 1) spinDuration += 2.0;
+        if (isBatch) spinDuration = spinDuration * 0.5;
         
         const startedAt = performance.now();
         const durationMs = spinDuration * 1000;
+        
         function step(now) {
-                const progress = Math.min(1, (now - startedAt) / durationMs);
-                const eased = 1 - Math.pow(1 - progress, index >= 4 ? 4 : 2);
-                obj.val = finalVal * eased;
-                const currentDigit = Math.floor(obj.val) % 10;
-                if (slot.textContent != currentDigit) {
-                    slot.textContent = currentDigit;
-                    if (index < 2) playTickSound(); 
-                }
-                if (progress < 1) return requestAnimationFrame(step);
-                slot.textContent = isBatch ? '?' : targetDigit;
-                slot.classList.add('locked'); 
-                playTickSound(true); 
-                
-                if (index === 5) {
-                    onSpinComplete(codeStr, winnerName, isBatch);
-                }
+            const progress = Math.min(1, (now - startedAt) / durationMs);
+            const eased = 1 - Math.pow(1 - progress, index >= totalSlots - 2 ? 4 : 2);
+            const currentStep = Math.floor(totalSteps * eased);
+            const currentChar = CHAR_POOL[currentStep % CHAR_POOL.length];
+            
+            if (slot.textContent !== currentChar) {
+                slot.textContent = currentChar;
+                if (index < 2) playTickSound();
+            }
+            
+            if (progress < 1) return requestAnimationFrame(step);
+            slot.textContent = isBatch ? '?' : targetChar;
+            slot.classList.add('locked');
+            playTickSound(true);
+            
+            if (index === totalSlots - 1) {
+                onSpinComplete(codeStr, winnerName, isBatch);
+            }
         }
         requestAnimationFrame(step);
     });
@@ -374,9 +383,54 @@ function onSpinComplete(code, name, isBatch) {
 
 document.getElementById('closeBatchModal').addEventListener('click', () => {
     document.getElementById('batchWinModal').classList.add('hidden');
-    for(let i=0; i<6; i++) document.getElementById('slot-'+i).textContent = '0';
-    document.querySelectorAll('.slot').forEach(s => s.classList.remove('locked'));
+    document.querySelectorAll('.slot-inner').forEach(s => {
+        s.textContent = '0';
+        s.classList.remove('locked');
+    });
 });
+
+// QR Modal Logic
+const openQrBtn = document.getElementById('openQrBtn');
+const qrModal = document.getElementById('qrModal');
+const closeQrModalBtn = document.getElementById('closeQrModalBtn');
+const copyCheckinLinkBtn = document.getElementById('copyCheckinLinkBtn');
+const qrLiveCount = document.getElementById('qrLiveCount');
+let qrPollInterval = null;
+
+async function updateQrStats() {
+    try {
+        const res = await fetch('/api/checkin/stats');
+        if (res.ok) {
+            const data = await res.json();
+            qrLiveCount.textContent = `🔥 Đã có ${data.total.toLocaleString('vi-VN')} gia sư điểm danh!`;
+        }
+    } catch(e) {}
+}
+
+if (openQrBtn && qrModal) {
+    openQrBtn.addEventListener('click', () => {
+        qrModal.classList.remove('hidden');
+        updateQrStats();
+        qrPollInterval = setInterval(updateQrStats, 3000);
+    });
+
+    closeQrModalBtn.addEventListener('click', () => {
+        qrModal.classList.add('hidden');
+        clearInterval(qrPollInterval);
+    });
+
+    copyCheckinLinkBtn.addEventListener('click', async () => {
+        const checkinUrl = `${window.location.origin}/checkin.html`;
+        try {
+            await navigator.clipboard.writeText(checkinUrl);
+            const orig = copyCheckinLinkBtn.textContent;
+            copyCheckinLinkBtn.textContent = '✓ Đã sao chép link!';
+            setTimeout(() => { copyCheckinLinkBtn.textContent = orig; }, 2000);
+        } catch (e) {
+            prompt('Sao chép đường link điểm danh này:', checkinUrl);
+        }
+    });
+}
 
 const copyBatchBtn = document.getElementById('copyBatchWinnersBtn');
 if (copyBatchBtn) {
