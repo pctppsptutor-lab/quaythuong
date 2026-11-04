@@ -146,7 +146,8 @@ app.get('/api/winners', async (req, res) => {
 // Tạo mã QR cho trang điểm danh
 app.get('/api/qr', async (req, res) => {
     try {
-        const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+        const rawProto = req.headers['x-forwarded-proto'];
+        const protocol = (typeof rawProto === 'string' ? rawProto.split(',')[0].trim() : null) || req.protocol || 'https';
         const host = req.get('host');
         const checkinUrl = `${protocol}://${host}/checkin.html`;
         
@@ -197,11 +198,21 @@ app.post('/api/checkin', checkinLimiter, async (req, res) => {
             });
         }
         
-        // Thêm mã mới vào danh sách
-        await pool.query(
-            'INSERT INTO participants (code, name, weight, is_drawn) VALUES ($1, $2, 1, 0)',
+        // Thêm mã mới vào danh sách (chống race-condition)
+        const insertRes = await pool.query(
+            'INSERT INTO participants (code, name, weight, is_drawn) VALUES ($1, $2, 1, 0) ON CONFLICT (code) DO NOTHING RETURNING id',
             [participant.code, participant.name]
         );
+        
+        if (insertRes.rows.length === 0) {
+            return res.json({
+                success: true,
+                alreadyRegistered: true,
+                code: participant.code,
+                name: participant.name,
+                message: 'Mã gia sư đã có trong danh sách quay thưởng!'
+            });
+        }
         
         audit(null, 'checkin_qr', `code=${participant.code}`);
         return res.json({
